@@ -1,9 +1,9 @@
-// Version ohne OTA
+  // Version ohne OTA
 #include <ESP8266WiFi.h>
-//#include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
-//#include <ArduinoOTA.h>
+
+#include <ESP8266HTTPClient.h>
 
 ESP8266WebServer server(80);
 
@@ -17,37 +17,43 @@ void handleRoot() {
   int sec = millis() / 1000;
   int min = sec / 60;
   int hr = min / 60;
-  Serial.print("HandleRoot");
-  int _sensorWert = 0;
+  Serial.print("HandleRoot: ");
+  String _sensorWert;
+ 
+  HTTPClient http;
+
+  Serial.print("[HTTP] begin...");
+  // configure traged server and url
+  http.begin("http://192.168.2.141/Sensor"); //HTTP
+
+  Serial.print(" GET...");
+  // start connection and send HTTP header
+  int httpCode = http.GET();
+  // httpCode will be negative on error
+  if (httpCode > 0) {
+    // HTTP header has been send and Server response header has been handled
+    Serial.printf(" code: %d ", httpCode);
+
+    // file found at server
+    if (httpCode == HTTP_CODE_OK) {
+      _sensorWert = http.getString();
+    }
+  } else {
+    Serial.printf(" failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
+  http.end();
+ 
   Serial.print(" Sensor: ");
   Serial.print(_sensorWert);
-  //<p>Wert: %d</p>\n\  analogRead(0),
   snprintf(temp, 600,
            "<html><head><meta http-equiv='refresh' content='5'/><title>ESP-01S</title><style>body{background-color: #cccccc; Color: #000088; }</style></head>\
 <body><h1>ESP-01S</h1><p>Uptime: %02d:%02d:%02d</p>\n\
-<p>Sensor: %d</p>\n\
-<form action='/Schalte' method='POST'>LED %s<input type='submit' name='Schalten' value='%s'></form>\
+<p>Sensor: %s</p>\n\
 </html>",
-           hr, min % 60, sec % 60, _sensorWert, !LED_An ? "an" : "aus", LED_An ? "an" : "aus"
-          );
+           hr, min % 60, sec % 60, _sensorWert.c_str());
   Serial.print(" Msg fertig");
   server.send(200, "text/html", temp);
   Serial.println(" und gesendet");
-}
-
-void handleSchalte() {
-  if (server.args() == 1) {
-//    digitalWrite(LED_BUILTIN, LED_An ? LOW : HIGH); // Turn the LED on (Note that LOW is the voltage level
-//    LED_An = !LED_An;
-    server.sendHeader("Location", "/");
-    server.send(303, "text/html", "Location: /");
-  } else {
-    String message = "Fehler in Anzahl Args\n\n";
-    for (uint8_t i = 0; i < server.args(); i++) {
-      message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
-    }
-    server.send(400, "text/plain", message);
-  }
 }
 
 void handleNotFound() {
@@ -67,8 +73,6 @@ void handleNotFound() {
 
 
 void setup() {
-//  pinMode(LED_BUILTIN, OUTPUT);
-//  digitalWrite(LED_BUILTIN, HIGH);
 
   Serial.begin(115200);
   Serial.println("Booting");
@@ -87,20 +91,14 @@ void setup() {
   }
 
   server.on("/", handleRoot);
-  server.on("/Schalte", handleSchalte);
   server.onNotFound(handleNotFound);
 
   server.begin();
   Serial.println("HTTP server started");
- 
-//  digitalWrite(LED_BUILTIN, LOW);
 
-//  ArduinoOTA.begin();
-//  Serial.println("OTA started");
 }
 
 void loop() {
-//  ArduinoOTA.handle();
   server.handleClient();
 }
 
